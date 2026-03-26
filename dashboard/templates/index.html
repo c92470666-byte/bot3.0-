@@ -305,4 +305,331 @@ async function updatePerformance() {
 
         const retPct = perf.total_return_pct || 0;
         const retEl = document.getElementById('stat-return');
-        retEl.innerHTML = `Retorno: <span class="${retPct >= 0 ? 'text-green-400' : 'text-red-
+        retEl.innerHTML = `Retorno: <span class="${retPct >= 0 ? 'text-green-400' : 'text-red-400'}">${retPct >= 0 ? '+' : ''}${retPct.toFixed(2)}%</span>`;
+
+        const pnl = perf.total_pnl || 0;
+        const pnlEl = document.getElementById('stat-pnl');
+        pnlEl.textContent = `$${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`;
+        pnlEl.className = `text-2xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`;
+
+        document.getElementById('stat-trades-count').textContent =
+            `${perf.total_trades || 0} trades`;
+
+        const wr = perf.win_rate || 0;
+        document.getElementById('stat-winrate').textContent = `${wr.toFixed(1)}%`;
+        document.getElementById('stat-wl').innerHTML =
+            `<span class="text-green-400">${perf.wins || 0}W</span> / <span class="text-red-400">${perf.losses || 0}L</span>`;
+
+        // Status
+        const statusEl = document.getElementById('stat-status');
+        if (status.running) {
+            statusEl.textContent = 'Activo';
+            statusEl.className = 'text-2xl font-bold text-green-400';
+            document.getElementById('status-card').classList.add('glow-green');
+            document.getElementById('status-card').classList.remove('glow-red');
+        } else {
+            statusEl.textContent = 'Detenido';
+            statusEl.className = 'text-2xl font-bold text-red-400';
+            document.getElementById('status-card').classList.add('glow-red');
+            document.getElementById('status-card').classList.remove('glow-green');
+        }
+        document.getElementById('stat-cycles').textContent =
+            `${status.cycle_count || 0} ciclos`;
+
+        // Daily stats
+        document.getElementById('daily-trades').textContent =
+            `${daily.trades_today || 0} / ${daily.max_trades || 20}`;
+
+        const dPnl = daily.daily_pnl || 0;
+        const dPnlEl = document.getElementById('daily-pnl');
+        dPnlEl.textContent = `$${dPnl >= 0 ? '+' : ''}${dPnl.toFixed(2)}`;
+        dPnlEl.className = `text-xl font-bold ${dPnl >= 0 ? 'text-green-400' : 'text-red-400'}`;
+
+        document.getElementById('open-positions').textContent = perf.open_positions || 0;
+        document.getElementById('profit-factor').textContent = (perf.profit_factor || 0).toFixed(2);
+
+        const dd = perf.max_drawdown || 0;
+        document.getElementById('max-drawdown').textContent = `${dd.toFixed(2)}%`;
+
+    } catch (e) {
+        console.error('Error actualizando performance:', e);
+    }
+}
+
+// ==========================================
+// TRADES TABLE
+// ==========================================
+let currentFilter = 'all';
+
+function filterTrades(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.trade-filter').forEach(btn => {
+        btn.classList.remove('bg-primary-600', 'text-white');
+        btn.classList.add('bg-dark-700', 'text-dark-300');
+    });
+    const activeBtn = document.querySelector(`[data-filter="${filter}"]`);
+    if (activeBtn) {
+        activeBtn.classList.remove('bg-dark-700', 'text-dark-300');
+        activeBtn.classList.add('bg-primary-600', 'text-white');
+    }
+    updateTrades(filter);
+}
+
+async function updateTrades(filter) {
+    try {
+        const mode = '{{ config.mode }}';
+        let url = `/api/trades?mode=${mode}&limit=50`;
+        if (filter && filter !== 'all') {
+            url += `&status=${filter}`;
+        }
+
+        const resp = await fetch(url);
+        const trades = await resp.json();
+        const tbody = document.getElementById('trades-tbody');
+
+        if (!trades || trades.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-8 text-dark-500">
+                        <i class="fas fa-inbox text-3xl mb-2 block"></i>
+                        <p>No hay operaciones aún. Inicia el bot para comenzar.</p>
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        tbody.innerHTML = trades.map(t => {
+            const date = t.timestamp ? new Date(t.timestamp).toLocaleString('es', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            }) : '-';
+
+            const marketName = (t.market_name || '').substring(0, 50);
+
+            const sideClass = t.outcome === 'yes' ? 'text-green-400' : 'text-red-400';
+            const sideText = `${(t.side || '').toUpperCase()} ${(t.outcome || '').toUpperCase()}`;
+
+            const entry = t.entry_price ? t.entry_price.toFixed(4) : '-';
+            const exit = t.exit_price ? t.exit_price.toFixed(4) : '-';
+            const cost = t.cost ? `$${t.cost.toFixed(2)}` : '-';
+
+            let pnlHtml = '-';
+            if (t.status === 'closed' && t.pnl !== null && t.pnl !== undefined) {
+                const pnlClass = t.pnl >= 0 ? 'text-green-400' : 'text-red-400';
+                pnlHtml = `<span class="${pnlClass}">$${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}</span>`;
+            }
+
+            let statusBadge = '';
+            switch(t.status) {
+                case 'open':
+                    statusBadge = '<span class="px-2 py-1 rounded-full text-xs bg-blue-900 text-blue-300">Abierta</span>';
+                    break;
+                case 'closed':
+                    const closedClass = (t.pnl || 0) >= 0 ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300';
+                    statusBadge = `<span class="px-2 py-1 rounded-full text-xs ${closedClass}">Cerrada</span>`;
+                    break;
+                default:
+                    statusBadge = `<span class="px-2 py-1 rounded-full text-xs bg-dark-700 text-dark-400">${t.status}</span>`;
+            }
+
+            return `
+                <tr class="border-b border-dark-800 hover:bg-dark-800/50 transition">
+                    <td class="py-3 px-2 text-dark-300">${date}</td>
+                    <td class="py-3 px-2 text-white text-xs" title="${t.market_name || ''}">${marketName}</td>
+                    <td class="py-3 px-2 text-center ${sideClass} font-semibold">${sideText}</td>
+                    <td class="py-3 px-2 text-right text-dark-300">${entry}</td>
+                    <td class="py-3 px-2 text-right text-dark-300">${exit}</td>
+                    <td class="py-3 px-2 text-right text-dark-300">${cost}</td>
+                    <td class="py-3 px-2 text-right font-semibold">${pnlHtml}</td>
+                    <td class="py-3 px-2 text-center">${statusBadge}</td>
+                </tr>`;
+        }).join('');
+
+    } catch (e) {
+        console.error('Error actualizando trades:', e);
+    }
+}
+
+// ==========================================
+// EQUITY CHART
+// ==========================================
+let equityChart = null;
+
+async function updateEquityChart() {
+    try {
+        const mode = '{{ config.mode }}';
+        const resp = await fetch(`/api/equity-curve?mode=${mode}`);
+        const data = await resp.json();
+
+        const labels = data.map((d, i) => {
+            if (d.timestamp) {
+                return new Date(d.timestamp).toLocaleDateString('es', {
+                    month: 'short', day: 'numeric'
+                });
+            }
+            return i === 0 ? 'Inicio' : `#${i}`;
+        });
+
+        const values = data.map(d => d.equity);
+
+        const ctx = document.getElementById('equity-chart').getContext('2d');
+
+        if (equityChart) {
+            equityChart.destroy();
+        }
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        const lastVal = values[values.length - 1] || 0;
+        const firstVal = values[0] || 0;
+
+        if (lastVal >= firstVal) {
+            gradient.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
+            gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+        } else {
+            gradient.addColorStop(0, 'rgba(239, 68, 68, 0.3)');
+            gradient.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
+        }
+
+        equityChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Equity',
+                    data: values,
+                    borderColor: lastVal >= firstVal ? '#10b981' : '#ef4444',
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: values.length > 20 ? 0 : 3,
+                    pointHoverRadius: 5,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#e2e8f0',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: ctx => `$${ctx.parsed.y.toFixed(2)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(71, 85, 105, 0.3)' },
+                        ticks: { color: '#94a3b8', maxTicksLimit: 10 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(71, 85, 105, 0.3)' },
+                        ticks: {
+                            color: '#94a3b8',
+                            callback: val => '$' + val.toFixed(0)
+                        }
+                    }
+                }
+            }
+        });
+
+    } catch (e) {
+        console.error('Error actualizando gráfica:', e);
+    }
+}
+
+// ==========================================
+// LOGS
+// ==========================================
+async function updateLogs() {
+    await refreshLogs();
+}
+
+async function refreshLogs() {
+    try {
+        const resp = await fetch('/api/logs?limit=50');
+        const logs = await resp.json();
+        const container = document.getElementById('logs-container');
+
+        if (!logs || logs.length === 0) {
+            container.innerHTML = '<div class="text-dark-500">Sin logs aún...</div>';
+            return;
+        }
+
+        container.innerHTML = logs.map(log => {
+            let levelClass = 'text-dark-400';
+            let icon = 'ℹ️';
+            switch(log.level) {
+                case 'ERROR': levelClass = 'text-red-400'; icon = '❌'; break;
+                case 'WARNING': levelClass = 'text-yellow-400'; icon = '⚠️'; break;
+                case 'INFO': levelClass = 'text-blue-400'; icon = 'ℹ️'; break;
+                case 'DEBUG': levelClass = 'text-dark-500'; icon = '🔍'; break;
+            }
+
+            const time = log.timestamp
+                ? new Date(log.timestamp).toLocaleTimeString('es')
+                : '';
+
+            return `<div class="py-1 border-b border-dark-800/50">
+                <span class="text-dark-500">${time}</span>
+                <span class="${levelClass} font-semibold ml-2">${icon} ${log.level}</span>
+                <span class="text-dark-300 ml-2">${log.message || ''}</span>
+            </div>`;
+        }).join('');
+
+        // Scroll al final
+        container.scrollTop = container.scrollHeight;
+
+    } catch (e) {
+        console.error('Error actualizando logs:', e);
+    }
+}
+
+// ==========================================
+// TOAST NOTIFICATIONS
+// ==========================================
+function showToast(message, type = 'info') {
+    const colors = {
+        success: 'bg-green-900 border-green-700 text-green-300',
+        error: 'bg-red-900 border-red-700 text-red-300',
+        info: 'bg-blue-900 border-blue-700 text-blue-300',
+        warning: 'bg-yellow-900 border-yellow-700 text-yellow-300',
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `fixed top-20 right-4 z-50 px-6 py-4 rounded-xl border shadow-2xl ${colors[type] || colors.info} transition-all transform translate-x-full`;
+    toast.innerHTML = `<div class="flex items-center space-x-2"><span>${message}</span></div>`;
+
+    document.body.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-full');
+    });
+
+    // Remove after 4s
+    setTimeout(() => {
+        toast.classList.add('translate-x-full');
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+// ==========================================
+// INITIALIZATION
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    updateDashboard();
+    // Auto-refresh cada 10 segundos
+    setInterval(updateDashboard, 10000);
+});
+
+// Enter key en modal de confirmación
+document.getElementById('confirm-input')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') submitConfirm();
+});
+</script>
+{% endblock %}
