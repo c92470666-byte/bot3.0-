@@ -1,5 +1,5 @@
 # ==========================================
-# PolyBot - Dockerfile para producción
+# PolyBot - Dockerfile corregido para Railway
 # ==========================================
 FROM python:3.11-slim
 
@@ -11,28 +11,28 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Directorio de trabajo
 WORKDIR /app
 
-# Instalar dependencias del sistema
+# Instalar dependencias del sistema necesarias para compilación
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc && \
     rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements primero (cache de Docker)
+# Copiar requirements primero para aprovechar cache de Docker
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
 
-# Copiar código
+# Instalar dependencias sin actualizar pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar el resto del código
 COPY . .
 
-# Crear directorios necesarios
+# Crear carpetas necesarias para persistencia y logs
 RUN mkdir -p data logs data/trades
 
-# Exponer puerto
+# Exponer el puerto que usa la app
 EXPOSE ${PORT}
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:${PORT}/')" || exit 1
+# Health check para Railway
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD curl -f http://localhost:${PORT}/ || exit 1
 
 # Comando de inicio
 CMD ["python", "run.py"]
