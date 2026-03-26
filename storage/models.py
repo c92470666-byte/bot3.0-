@@ -91,3 +91,25 @@ class DailyStats(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     date = Column(String(10), unique=True, nullable=False)
     trades_count = Column(Integer, default
+    trades_count = Column(Integer, default=0)
+    wins = Column(Integer, default=0)
+    losses = Column(Integer, default=0)
+    total_pnl = Column(Float, default=0.0)
+    win_rate = Column(Float, default=0.0)
+    capital_start = Column(Float, default=0.0)
+    capital_end = Column(Float, default=0.0)
+    max_drawdown = Column(Float, default=0.0)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "date": self.date,
+            "trades_count": self.trades_count,
+            "wins": self.wins,
+            "losses": self.losses,
+            "total_pnl": self.total_pnl,
+            "win_rate": self.win_rate,
+            "capital_start": self.capital_start,
+            "capital_end": self.capital_end,
+            "max_drawdown": self.max_drawdown,
+        }
