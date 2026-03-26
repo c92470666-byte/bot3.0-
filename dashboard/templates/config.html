@@ -1,0 +1,600 @@
+{% extends "base.html" %}
+{% block title %}Configuración{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white">
+                <i class="fas fa-cog mr-2 text-primary-400"></i>
+                Configuración
+            </h1>
+            <p class="text-dark-400 mt-1">Configura todo el bot sin tocar código</p>
+        </div>
+        <div class="flex space-x-2">
+            <button onclick="resetConfig()"
+                class="px-4 py-2 bg-dark-700 text-dark-300 rounded-xl hover:bg-dark-600 transition text-sm">
+                <i class="fas fa-undo mr-1"></i>Resetear
+            </button>
+        </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    {% if request.args.get('saved') %}
+    <div class="mb-4 p-4 bg-green-900/50 border border-green-700 rounded-xl text-green-300">
+        <i class="fas fa-check-circle mr-2"></i>Configuración guardada correctamente
+    </div>
+    {% endif %}
+    {% if request.args.get('reset') %}
+    <div class="mb-4 p-4 bg-blue-900/50 border border-blue-700 rounded-xl text-blue-300">
+        <i class="fas fa-info-circle mr-2"></i>Configuración reseteada a valores por defecto
+    </div>
+    {% endif %}
+    {% if errors %}
+    <div class="mb-4 p-4 bg-red-900/50 border border-red-700 rounded-xl text-red-300">
+        <i class="fas fa-exclamation-triangle mr-2"></i>Errores:
+        <ul class="list-disc list-inside mt-2">
+            {% for error in errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Form -->
+    <form id="config-form" action="/config/save" method="POST">
+
+        <!-- ================================ -->
+        <!-- SECTION 1: MODO Y CAPITAL -->
+        <!-- ================================ -->
+        <div class="glass-card p-6 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="fas fa-sliders-h mr-2 text-primary-400"></i>
+                General
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Modo -->
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Modo de operación
+                    </label>
+                    <select name="mode" id="mode-select"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                        <option value="paper" {% if config.mode == 'paper' %}selected{% endif %}>
+                            📝 PAPER TRADING (Simulación)
+                        </option>
+                        <option value="real" {% if config.mode == 'real' %}selected{% endif %}>
+                            💰 REAL (Dinero real)
+                        </option>
+                    </select>
+                    <p class="text-dark-500 text-xs mt-1">
+                        Paper Trading simula operaciones sin riesgo
+                    </p>
+                </div>
+
+                <!-- Capital Inicial -->
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Capital inicial ($)
+                    </label>
+                    <input type="number" name="capital_initial" step="0.01" min="1" max="1000000"
+                        value="{{ config.capital_initial }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition"
+                        placeholder="1000.00">
+                    <p class="text-dark-500 text-xs mt-1">
+                        Capital con el que inicia el bot
+                    </p>
+                </div>
+            </div>
+
+            <!-- Warning for Real Mode -->
+            <div id="real-mode-warning" class="hidden mt-4 p-4 bg-red-900/30 border border-red-800 rounded-xl">
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-exclamation-triangle text-red-400 text-xl mt-0.5"></i>
+                    <div>
+                        <p class="text-red-300 font-semibold">⚠️ Modo REAL activado</p>
+                        <p class="text-red-400 text-sm mt-1">
+                            En modo real se usará dinero real. Asegúrate de configurar
+                            correctamente las API Keys y los parámetros de riesgo.
+                            Se requerirá confirmación antes de iniciar.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================ -->
+        <!-- SECTION 2: API KEYS -->
+        <!-- ================================ -->
+        <div class="glass-card p-6 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="fas fa-key mr-2 text-yellow-400"></i>
+                API de Polymarket
+            </h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">API Key</label>
+                    <input type="text" name="api_key"
+                        value="{{ config.api.key if config.api.key else '' }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition font-mono"
+                        placeholder="Tu API Key de Polymarket">
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">API Secret</label>
+                    <div class="relative">
+                        <input type="password" name="api_secret" id="api-secret-input"
+                            value="{{ config.api.secret if config.api.secret else '' }}"
+                            class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition font-mono pr-12"
+                            placeholder="Tu API Secret">
+                        <button type="button" onclick="togglePassword('api-secret-input')"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-dark-400 hover:text-white">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">Passphrase (opcional)</label>
+                    <input type="password" name="api_passphrase"
+                        value="{{ config.api.passphrase if config.api.passphrase else '' }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition font-mono"
+                        placeholder="Passphrase (si aplica)">
+                </div>
+
+                <button type="button" onclick="testAPI()"
+                    class="px-4 py-2 bg-dark-600 text-dark-300 rounded-xl hover:bg-dark-500 hover:text-white transition text-sm">
+                    <i class="fas fa-plug mr-1"></i>Probar conexión
+                </button>
+                <span id="api-test-result" class="ml-2 text-sm"></span>
+            </div>
+        </div>
+
+        <!-- ================================ -->
+        <!-- SECTION 3: MERCADOS -->
+        <!-- ================================ -->
+        <div class="glass-card p-6 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="fas fa-store mr-2 text-green-400"></i>
+                Mercados
+            </h2>
+
+            <div class="mb-4">
+                <label class="block text-dark-300 text-sm font-medium mb-3">
+                    Categorías activas
+                </label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {% set categories = [
+                        ('crypto', '₿ Crypto', 'blue'),
+                        ('politics', '🏛️ Política', 'red'),
+                        ('sports', '⚽ Deportes', 'green'),
+                        ('economy', '📈 Economía', 'yellow')
+                    ] %}
+                    {% for value, label, color in categories %}
+                    <label class="flex items-center space-x-3 p-3 bg-dark-700 rounded-xl cursor-pointer hover:bg-dark-600 transition">
+                        <input type="checkbox" name="markets_selected" value="{{ value }}"
+                            {% if value in config.markets.selected %}checked{% endif %}
+                            class="w-4 h-4 rounded border-dark-500 text-primary-500 focus:ring-primary-500 bg-dark-600">
+                        <span class="text-dark-200 text-sm">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Máx. mercados a analizar
+                    </label>
+                    <input type="number" name="markets_max" min="1" max="50"
+                        value="{{ config.markets.max_markets }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                </div>
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Liquidez mínima ($)
+                    </label>
+                    <input type="number" name="markets_min_liquidity" min="0" step="100"
+                        value="{{ config.markets.min_liquidity }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================ -->
+        <!-- SECTION 4: ESTRATEGIAS -->
+        <!-- ================================ -->
+        <div class="glass-card p-6 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="fas fa-brain mr-2 text-purple-400"></i>
+                Estrategias
+            </h2>
+
+            <div class="space-y-3">
+                {% set strategies_list = [
+                    ('momentum', '📈 Momentum', 'Compra cuando detecta tendencia alcista sostenida'),
+                    ('mean_reversion', '🔄 Reversión a la Media', 'Compra cuando el precio se desvía mucho de su promedio'),
+                    ('sentiment', '💬 Sentimiento', 'Analiza volumen y velocidad de precio para detectar interés'),
+                    ('arbitrage', '⚖️ Arbitraje', 'Busca ineficiencias de precio entre YES y NO')
+                ] %}
+                {% for value, label, description in strategies_list %}
+                <label class="flex items-start space-x-4 p-4 bg-dark-700 rounded-xl cursor-pointer hover:bg-dark-600 transition">
+                    <input type="checkbox" name="strategies_active" value="{{ value }}"
+                        {% if value in config.strategies.active %}checked{% endif %}
+                        class="w-5 h-5 mt-0.5 rounded border-dark-500 text-primary-500 focus:ring-primary-500 bg-dark-600">
+                    <div>
+                        <span class="text-white font-medium">{{ label }}</span>
+                        <p class="text-dark-400 text-sm mt-1">{{ description }}</p>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ================================ -->
+        <!-- SECTION 5: GESTIÓN DE RIESGO -->
+        <!-- ================================ -->
+        <div class="glass-card p-6 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="fas fa-shield-alt mr-2 text-red-400"></i>
+                Gestión de Riesgo
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Stop Loss (%)
+                    </label>
+                    <input type="number" name="risk_stop_loss" step="0.1" min="0.1" max="50"
+                        value="{{ config.risk.stop_loss_pct }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                    <p class="text-dark-500 text-xs mt-1">Cierra posición si pierde este %</p>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Take Profit (%)
+                    </label>
+                    <input type="number" name="risk_take_profit" step="0.1" min="0.1" max="500"
+                        value="{{ config.risk.take_profit_pct }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                    <p class="text-dark-500 text-xs mt-1">Cierra posición si gana este %</p>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Máx. por posición (%)
+                    </label>
+                    <input type="number" name="risk_max_position" step="0.1" min="0.1" max="100"
+                                             value="{{ config.risk.max_position_pct }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                    <p class="text-dark-500 text-xs mt-1">% máximo del capital por trade</p>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Máx. exposición total (%)
+                    </label>
+                    <input type="number" name="risk_max_exposure" step="1" min="1" max="100"
+                        value="{{ config.risk.max_total_exposure_pct }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                    <p class="text-dark-500 text-xs mt-1">% máximo del capital en posiciones abiertas</p>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Máx. pérdida diaria (%)
+                    </label>
+                    <input type="number" name="risk_max_daily_loss" step="0.1" min="0.1" max="50"
+                        value="{{ config.risk.max_daily_loss_pct }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                    <p class="text-dark-500 text-xs mt-1">Detiene trading si se alcanza</p>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Máx. trades por día
+                    </label>
+                    <input type="number" name="risk_max_trades" min="1" max="100"
+                        value="{{ config.risk.max_trades_per_day }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                    <p class="text-dark-500 text-xs mt-1">Límite de operaciones diarias</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================ -->
+        <!-- SECTION 6: EJECUCIÓN -->
+        <!-- ================================ -->
+        <div class="glass-card p-6 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="fas fa-clock mr-2 text-cyan-400"></i>
+                Ejecución
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Intervalo de ejecución
+                    </label>
+                    <select name="execution_interval"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                        <option value="60" {% if config.execution.interval_seconds == 60 %}selected{% endif %}>
+                            Cada 1 minuto
+                        </option>
+                        <option value="120" {% if config.execution.interval_seconds == 120 %}selected{% endif %}>
+                            Cada 2 minutos
+                        </option>
+                        <option value="300" {% if config.execution.interval_seconds == 300 %}selected{% endif %}>
+                            Cada 5 minutos
+                        </option>
+                        <option value="600" {% if config.execution.interval_seconds == 600 %}selected{% endif %}>
+                            Cada 10 minutos
+                        </option>
+                        <option value="900" {% if config.execution.interval_seconds == 900 %}selected{% endif %}>
+                            Cada 15 minutos
+                        </option>
+                        <option value="1800" {% if config.execution.interval_seconds == 1800 %}selected{% endif %}>
+                            Cada 30 minutos
+                        </option>
+                        <option value="3600" {% if config.execution.interval_seconds == 3600 %}selected{% endif %}>
+                            Cada 1 hora
+                        </option>
+                    </select>
+                    <p class="text-dark-500 text-xs mt-1">Cada cuánto analiza mercados y ejecuta</p>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Tolerancia de slippage (%)
+                    </label>
+                    <input type="number" name="execution_slippage" step="0.1" min="0" max="10"
+                        value="{{ config.execution.slippage_tolerance_pct }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition">
+                    <p class="text-dark-500 text-xs mt-1">Diferencia máxima aceptable de precio</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================ -->
+        <!-- SECTION 7: TELEGRAM -->
+        <!-- ================================ -->
+        <div class="glass-card p-6 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <i class="fab fa-telegram mr-2 text-blue-400"></i>
+                Telegram (Control Remoto)
+            </h2>
+
+            <!-- Toggle Telegram -->
+            <div class="flex items-center justify-between mb-6 p-4 bg-dark-700 rounded-xl">
+                <div>
+                    <span class="text-white font-medium">Activar Telegram</span>
+                    <p class="text-dark-400 text-sm">Controla el bot desde tu teléfono</p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="telegram_enabled"
+                        {% if config.telegram.enabled %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div id="telegram-fields" class="space-y-4">
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Token del Bot
+                    </label>
+                    <input type="text" name="telegram_token"
+                        value="{{ config.telegram.token }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition font-mono"
+                        placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+                    <p class="text-dark-500 text-xs mt-1">
+                        Obtén tu token con <a href="https://t.me/BotFather" target="_blank" class="text-primary-400 hover:underline">@BotFather</a>
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-dark-300 text-sm font-medium mb-2">
+                        Chat ID
+                    </label>
+                    <input type="text" name="telegram_chat_id"
+                        value="{{ config.telegram.chat_id }}"
+                        class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white focus:outline-none focus:border-primary-500 transition font-mono"
+                        placeholder="Tu Chat ID numérico">
+                    <p class="text-dark-500 text-xs mt-1">
+                        Obtén tu ID con <a href="https://t.me/userinfobot" target="_blank" class="text-primary-400 hover:underline">@userinfobot</a>
+                    </p>
+                </div>
+
+                <!-- Notification toggles -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label class="flex items-center space-x-3 p-3 bg-dark-700 rounded-xl cursor-pointer hover:bg-dark-600 transition">
+                        <input type="checkbox" name="telegram_notify_trades"
+                            {% if config.telegram.notify_trades %}checked{% endif %}
+                            class="w-4 h-4 rounded border-dark-500 text-primary-500 focus:ring-primary-500 bg-dark-600">
+                        <span class="text-dark-200 text-sm">📊 Notificar trades</span>
+                    </label>
+                    <label class="flex items-center space-x-3 p-3 bg-dark-700 rounded-xl cursor-pointer hover:bg-dark-600 transition">
+                        <input type="checkbox" name="telegram_notify_errors"
+                            {% if config.telegram.notify_errors %}checked{% endif %}
+                            class="w-4 h-4 rounded border-dark-500 text-primary-500 focus:ring-primary-500 bg-dark-600">
+                        <span class="text-dark-200 text-sm">🚨 Notificar errores</span>
+                    </label>
+                    <label class="flex items-center space-x-3 p-3 bg-dark-700 rounded-xl cursor-pointer hover:bg-dark-600 transition">
+                        <input type="checkbox" name="telegram_notify_daily"
+                            {% if config.telegram.notify_daily_summary %}checked{% endif %}
+                            class="w-4 h-4 rounded border-dark-500 text-primary-500 focus:ring-primary-500 bg-dark-600">
+                        <span class="text-dark-200 text-sm">📅 Resumen diario</span>
+                    </label>
+                </div>
+
+                <button type="button" onclick="testTelegram()"
+                    class="px-4 py-2 bg-dark-600 text-dark-300 rounded-xl hover:bg-dark-500 hover:text-white transition text-sm">
+                    <i class="fab fa-telegram mr-1"></i>Enviar mensaje de prueba
+                </button>
+                <span id="telegram-test-result" class="ml-2 text-sm"></span>
+            </div>
+        </div>
+
+        <!-- ================================ -->
+        <!-- SAVE BUTTONS -->
+        <!-- ================================ -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-12">
+            <button type="submit"
+                class="btn-success text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2 text-lg flex-1">
+                <i class="fas fa-save"></i>
+                <span>Guardar Configuración</span>
+            </button>
+            <a href="/"
+                class="px-8 py-4 bg-dark-700 text-dark-300 rounded-xl font-semibold hover:bg-dark-600 hover:text-white transition flex items-center justify-center space-x-2">
+                <i class="fas fa-arrow-left"></i>
+                <span>Volver al Dashboard</span>
+            </a>
+        </div>
+
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ==========================================
+// MODE WARNING
+// ==========================================
+const modeSelect = document.getElementById('mode-select');
+const realWarning = document.getElementById('real-mode-warning');
+
+function checkMode() {
+    if (modeSelect.value === 'real') {
+        realWarning.classList.remove('hidden');
+    } else {
+        realWarning.classList.add('hidden');
+    }
+}
+
+modeSelect.addEventListener('change', checkMode);
+checkMode();
+
+// ==========================================
+// PASSWORD TOGGLE
+// ==========================================
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = input.nextElementSibling?.querySelector('i') ||
+                 input.parentElement.querySelector('button i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        if (icon) icon.className = 'fas fa-eye';
+    }
+}
+
+// ==========================================
+// TEST API CONNECTION
+// ==========================================
+async function testAPI() {
+    const resultEl = document.getElementById('api-test-result');
+    resultEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Probando...';
+    resultEl.className = 'ml-2 text-sm text-yellow-400';
+
+    try {
+        const resp = await fetch('/config/test-api', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.success) {
+            resultEl.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+            resultEl.className = 'ml-2 text-sm text-green-400';
+        } else {
+            resultEl.innerHTML = '<i class="fas fa-times-circle"></i> ' + data.message;
+            resultEl.className = 'ml-2 text-sm text-red-400';
+        }
+    } catch (e) {
+        resultEl.innerHTML = '<i class="fas fa-times-circle"></i> Error de conexión';
+        resultEl.className = 'ml-2 text-sm text-red-400';
+    }
+}
+
+// ==========================================
+// TEST TELEGRAM
+// ==========================================
+async function testTelegram() {
+    const resultEl = document.getElementById('telegram-test-result');
+    resultEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    resultEl.className = 'ml-2 text-sm text-yellow-400';
+
+    try {
+        const resp = await fetch('/config/test-telegram', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.success) {
+            resultEl.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+            resultEl.className = 'ml-2 text-sm text-green-400';
+        } else {
+            resultEl.innerHTML = '<i class="fas fa-times-circle"></i> ' + data.message;
+            resultEl.className = 'ml-2 text-sm text-red-400';
+        }
+    } catch (e) {
+        resultEl.innerHTML = '<i class="fas fa-times-circle"></i> Error';
+        resultEl.className = 'ml-2 text-sm text-red-400';
+    }
+}
+
+// ==========================================
+// RESET CONFIG
+// ==========================================
+async function resetConfig() {
+    if (!confirm('¿Estás seguro de resetear toda la configuración a valores por defecto?')) {
+        return;
+    }
+
+    try {
+        const resp = await fetch('/config/reset', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+            window.location.href = '/config?reset=1';
+        }
+        } catch (e) {
+        alert('Error reseteando configuración');
+    }
+}
+
+// ==========================================
+// FORM VALIDATION
+// ==========================================
+document.getElementById('config-form').addEventListener('submit', function(e) {
+    const mode = document.getElementById('mode-select').value;
+    const apiKey = document.querySelector('[name="api_key"]').value;
+    const apiSecret = document.querySelector('[name="api_secret"]').value;
+
+    // Validar API keys para modo real
+    if (mode === 'real' && (!apiKey || !apiSecret)) {
+        e.preventDefault();
+        alert('⚠️ API Key y Secret son obligatorios para modo REAL');
+        return false;
+    }
+
+    // Validar al menos una estrategia
+    const strategies = document.querySelectorAll('[name="strategies_active"]:checked');
+    if (strategies.length === 0) {
+        e.preventDefault();
+        alert('⚠️ Selecciona al menos una estrategia');
+        return false;
+    }
+
+    // Validar al menos una categoría de mercado
+    const markets = document.querySelectorAll('[name="markets_selected"]:checked');
+    if (markets.length === 0) {
+        e.preventDefault();
+        alert('⚠️ Selecciona al menos una categoría de mercado');
+        return false;
+    }
+
+    return true;
+});
+</script>
+{% endblock %}
