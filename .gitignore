@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PolyBot data (no subir datos sensibles)
+data/config.json
+data/.encryption_key
+data/polybot.db
+data/trades/
+
+# Logs
+logs/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
