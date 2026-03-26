@@ -136,3 +136,43 @@ class ConfigManager:
                 cb(self._config)
             except Exception as e:
                 logger.error(f"Error en callback de configuración: {
+                logger.error(f"Error en callback de configuración: {e}")
+
+    def _load_defaults(self) -> dict:
+        """Carga la configuración por defecto."""
+        try:
+            with open(self.DEFAULTS_FILE, "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            logger.warning("Archivo de defaults no encontrado, usando mínimos")
+            return {
+                "mode": "paper",
+                "capital_initial": 1000.0,
+                "capital_current": 1000.0,
+                "api": {"key": "", "secret": "", "passphrase": ""},
+                "markets": {"selected": ["crypto"]},
+                "strategies": {"active": ["momentum"]},
+                "risk": {
+                    "stop_loss_pct": 15.0,
+                    "take_profit_pct": 25.0,
+                    "max_position_pct": 10.0
+                },
+                "execution": {"interval_seconds": 300},
+                "telegram": {"enabled": False, "token": "", "chat_id": ""},
+                "dashboard": {"password": "", "theme": "dark"}
+            }
+
+    @staticmethod
+    def _deep_merge(base: dict, override: dict) -> dict:
+        """Merge profundo de dos diccionarios."""
+        result = copy.deepcopy(base)
+        for key, value in override.items():
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
+                result[key] = ConfigManager._deep_merge(result[key], value)
+            else:
+                result[key] = copy.deepcopy(value)
+        return result
