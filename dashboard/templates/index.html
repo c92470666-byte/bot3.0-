@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Control Buttons -->
+<div class="flex flex-wrap gap-3 mb-6">
+    <button id="btn-start" onclick="startBot()"
+        class="btn-success text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition flex items-center space-x-2">
+        <i class="fas fa-play"></i>
+        <span>Iniciar Bot</span>
+    </button>
+    <button id="btn-stop" onclick="stopBot()"
+        class="btn-danger text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition flex items-center space-x-2">
+        <i class="fas fa-stop"></i>
+        <span>Detener Bot</span>
+    </button>
+    <a href="/config"
+        class="btn-primary text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition flex items-center space-x-2">
+        <i class="fas fa-cog"></i>
+        <span>Configuración</span>
+    </a>
+    <div class="flex items-center ml-auto space-x-2">
+        <span class="text-dark-400 text-sm">Modo:</span>
+        <span id="mode-badge" class="px-3 py-1 rounded-full text-sm font-semibold
+            {% if config.mode == 'paper' %}bg-blue-900 text-blue-300{% else %}bg-red-900 text-red-300{% endif %}">
+            {{ config.mode|upper }}
+        </span>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirm-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="glass-card p-8 max-w-md w-full">
+        <div class="text-center">
+            <i class="fas fa-exclamation-triangle text-5xl text-warning mb-4"></i>
+            <h3 class="text-xl font-bold text-white mb-2">⚠️ Modo REAL</h3>
+            <p class="text-dark-300 mb-6">
+                Estás a punto de usar <strong class="text-red-400">DINERO REAL</strong>.
+                Escribe <code class="bg-dark-700 px-2 py-1 rounded">CONFIRMAR</code> para continuar.
+            </p>
+            <input id="confirm-input" type="text" placeholder="Escribe CONFIRMAR"
+                class="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-white text-center text-lg mb-4 focus:outline-none focus:border-primary-500">
+            <div class="flex space-x-3">
+                <button onclick="cancelConfirm()"
+                    class="flex-1 px-4 py-3 bg-dark-700 text-dark-300 rounded-xl hover:bg-dark-600 transition">
+                    Cancelar
+                </button>
+                <button onclick="submitConfirm()"
+                    class="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards Row -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <!-- Capital -->
+    <div class="glass-card stat-card p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-dark-400 text-sm">Capital Actual</span>
+            <i class="fas fa-wallet text-primary-400"></i>
+        </div>
+        <div id="stat-capital" class="text-2xl font-bold text-white">
+            ${{ "%.2f"|format(config.capital_initial) }}
+        </div>
+        <div id="stat-return" class="text-sm text-dark-400 mt-1">
+            Retorno: <span class="text-green-400">+0.00%</span>
+        </div>
+    </div>
+
+    <!-- P&L Total -->
+    <div class="glass-card stat-card p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-dark-400 text-sm">P&L Total</span>
+            <i class="fas fa-chart-line text-green-400"></i>
+        </div>
+        <div id="stat-pnl" class="text-2xl font-bold text-green-400">$0.00</div>
+        <div id="stat-trades-count" class="text-sm text-dark-400 mt-1">0 trades</div>
+    </div>
+
+    <!-- Win Rate -->
+    <div class="glass-card stat-card p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-dark-400 text-sm">Win Rate</span>
+            <i class="fas fa-bullseye text-yellow-400"></i>
+        </div>
+        <div id="stat-winrate" class="text-2xl font-bold text-white">0%</div>
+        <div id="stat-wl" class="text-sm text-dark-400 mt-1">
+            <span class="text-green-400">0W</span> / <span class="text-red-400">0L</span>
+        </div>
+    </div>
+
+    <!-- Bot Status -->
+    <div id="status-card" class="glass-card stat-card p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-dark-400 text-sm">Estado del Bot</span>
+            <i class="fas fa-robot text-purple-400"></i>
+        </div>
+        <div id="stat-status" class="text-2xl font-bold text-red-400">Detenido</div>
+        <div id="stat-cycles" class="text-sm text-dark-400 mt-1">0 ciclos</div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+    <!-- Equity Curve -->
+    <div class="glass-card p-5 lg:col-span-2">
+        <h3 class="text-lg font-semibold text-white mb-4">
+            <i class="fas fa-chart-area mr-2 text-primary-400"></i>
+            Curva de Equity
+        </h3>
+        <div class="relative" style="height: 300px;">
+            <canvas id="equity-chart"></canvas>
+        </div>
+    </div>
+
+    <!-- Daily P&L -->
+    <div class="glass-card p-5">
+        <h3 class="text-lg font-semibold text-white mb-4">
+            <i class="fas fa-calendar-day mr-2 text-green-400"></i>
+            Resumen Hoy
+        </h3>
+        <div class="space-y-4">
+            <div>
+                <span class="text-dark-400 text-sm">Trades hoy</span>
+                <div id="daily-trades" class="text-xl font-bold text-white">0 / 20</div>
+            </div>
+            <div>
+                <span class="text-dark-400 text-sm">P&L hoy</span>
+                <div id="daily-pnl" class="text-xl font-bold text-green-400">$0.00</div>
+            </div>
+            <div>
+                <span class="text-dark-400 text-sm">Posiciones abiertas</span>
+                <div id="open-positions" class="text-xl font-bold text-white">0</div>
+            </div>
+            <div>
+                <span class="text-dark-400 text-sm">Profit Factor</span>
+                <div id="profit-factor" class="text-xl font-bold text-white">0.00</div>
+            </div>
+            <div>
+                <span class="text-dark-400 text-sm">Max Drawdown</span>
+                <div id="max-drawdown" class="text-xl font-bold text-red-400">0.00%</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Trades Table -->
+<div class="glass-card p-5 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-white">
+            <i class="fas fa-list mr-2 text-blue-400"></i>
+            Últimas Operaciones
+        </h3>
+        <div class="flex space-x-2">
+            <button onclick="filterTrades('all')" class="trade-filter px-3 py-1 rounded-lg text-sm bg-dark-700 text-dark-300 hover:text-white transition" data-filter="all">Todas</button>
+            <button onclick="filterTrades('open')" class="trade-filter px-3 py-1 rounded-lg text-sm bg-dark-700 text-dark-300 hover:text-white transition" data-filter="open">Abiertas</button>
+            <button onclick="filterTrades('closed')" class="trade-filter px-3 py-1 rounded-lg text-sm bg-dark-700 text-dark-300 hover:text-white transition" data-filter="closed">Cerradas</button>
+            <a href="/api/export/trades?mode={{ config.mode }}" class="px-3 py-1 rounded-lg text-sm bg-dark-700 text-dark-300 hover:text-white transition">
+                <i class="fas fa-download mr-1"></i>CSV
+            </a>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-dark-400 border-b border-dark-700">
+                    <th class="text-left py-3 px-2">Fecha</th>
+                    <th class="text-left py-3 px-2">Mercado</th>
+                    <th class="text-center py-3 px-2">Lado</th>
+                    <th class="text-right py-3 px-2">Entrada</th>
+                    <th class="text-right py-3 px-2">Salida</th>
+                    <th class="text-right py-3 px-2">Costo</th>
+                    <th class="text-right py-3 px-2">P&L</th>
+                    <th class="text-center py-3 px-2">Estado</th>
+                </tr>
+            </thead>
+            <tbody id="trades-tbody">
+                <tr>
+                    <td colspan="8" class="text-center py-8 text-dark-500">
+                        <i class="fas fa-inbox text-3xl mb-2"></i>
+                        <p>No hay operaciones aún. Inicia el bot para comenzar.</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Logs -->
+<div class="glass-card p-5">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-white">
+            <i class="fas fa-terminal mr-2 text-green-400"></i>
+            Logs del Sistema
+        </h3>
+        <button onclick="refreshLogs()" class="px-3 py-1 rounded-lg text-sm bg-dark-700 text-dark-300 hover:text-white transition">
+            <i class="fas fa-sync-alt mr-1"></i>Actualizar
+        </button>
+    </div>
+    <div id="logs-container" class="bg-dark-950 rounded-xl p-4 font-mono text-xs max-h-64 overflow-y-auto">
+        <div class="text-dark-500">Esperando logs...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ==========================================
+// CONTROL DEL BOT
+// ==========================================
+async function startBot() {
+    const mode = '{{ config.mode }}';
+
+    if (mode === 'real') {
+        document.getElementById('confirm-modal').classList.remove('hidden');
+        document.getElementById('confirm-input').focus();
+        return;
+    }
+
+    await doStartBot('');
+}
+
+async function doStartBot(confirmation) {
+    try {
+        const resp = await fetch('/bot/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirmation: confirmation })
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            updateDashboard();
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (e) {
+        showToast('❌ Error de conexión', 'error');
+    }
+}
+
+async function stopBot() {
+    try {
+        const resp = await fetch('/bot/stop', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.success) {
+            showToast('🔴 ' + data.message, 'success');
+            updateDashboard();
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (e) {
+        showToast('❌ Error de conexión', 'error');
+    }
+}
+
+function cancelConfirm() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    document.getElementById('confirm-input').value = '';
+}
+
+function submitConfirm() {
+    const input = document.getElementById('confirm-input').value;
+    if (input === 'CONFIRMAR') {
+        document.getElementById('confirm-modal').classList.add('hidden');
+        doStartBot('CONFIRMAR');
+    } else {
+        showToast('❌ Escribe CONFIRMAR exactamente', 'error');
+    }
+}
+
+// ==========================================
+// ACTUALIZACIÓN DEL DASHBOARD
+// ==========================================
+async function updateDashboard() {
+    await Promise.all([
+        updatePerformance(),
+        updateTrades('all'),
+        updateLogs(),
+        updateEquityChart(),
+    ]);
+}
+
+async function updatePerformance() {
+    try {
+        const [perfResp, statusResp, dailyResp] = await Promise.all([
+            fetch('/api/performance'),
+            fetch('/bot/status'),
+            fetch('/api/daily-stats'),
+        ]);
+
+        const perf = await perfResp.json();
+        const status = await statusResp.json();
+        const daily = await dailyResp.json();
+
+        // Stats cards
+        document.getElementById('stat-capital').textContent =
+            '$' + (perf.current_equity || 0).toFixed(2);
+
+        const retPct = perf.total_return_pct || 0;
+        const retEl = document.getElementById('stat-return');
+        retEl.innerHTML = `Retorno: <span class="${retPct >= 0 ? 'text-green-400' : 'text-red-
