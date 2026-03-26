@@ -1,0 +1,66 @@
+{
+    "mode": "paper",
+    "capital_initial": 1000.0,
+    "capital_current": 1000.0,
+    "api": {
+        "key": "",
+        "secret": "",
+        "passphrase": ""
+    },
+    "markets": {
+        "categories": ["crypto", "politics", "sports", "economy"],
+        "selected": ["crypto"],
+        "max_markets": 10,
+        "min_liquidity": 500
+    },
+    "strategies": {
+        "active": ["momentum"],
+        "momentum": {
+            "enabled": true,
+            "lookback_period": 24,
+            "threshold": 0.05,
+            "weight": 0.4
+        },
+        "mean_reversion": {
+            "enabled": false,
+            "lookback_period": 48,
+            "std_multiplier": 2.0,
+            "weight": 0.3
+        },
+        "sentiment": {
+            "enabled": false,
+            "sources": ["volume", "price_action"],
+            "weight": 0.2
+        },
+        "arbitrage": {
+            "enabled": false,
+            "min_spread": 0.02,
+            "weight": 0.1
+        }
+    },
+    "risk": {
+        "max_position_pct": 10.0,
+        "max_total_exposure_pct": 50.0,
+        "stop_loss_pct": 15.0,
+        "take_profit_pct": 25.0,
+        "max_daily_loss_pct": 5.0,
+        "max_trades_per_day": 20
+    },
+    "execution": {
+        "interval_seconds": 300,
+        "order_type": "limit",
+        "slippage_tolerance_pct": 1.0
+    },
+    "telegram": {
+        "enabled": false,
+        "token": "",
+        "chat_id": "",
+        "notify_trades": true,
+        "notify_errors": true,
+        "notify_daily_summary": true
+    },
+    "dashboard": {
+        "password": "",
+        "theme": "dark"
+    }
+}
